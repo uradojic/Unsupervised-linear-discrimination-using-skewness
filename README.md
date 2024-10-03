@@ -6,7 +6,7 @@ The goal of the project was to investigate properties of skewness based estimato
 
 **Main functions**
 
-All code here is written in R and requires the packages MASS, ICtest and mvtnorm.
+All code here is written in R and requires the packages MASS, ICtest, parallel and mvtnorm.
 
 The main functions are:
 
@@ -35,5 +35,5 @@ GNU GPLv3
 **References**
 
 Loperfido, N. (2013): Skewness and the linear discriminant function. Statistics & Probability Letters, 83, 93-99.\
-Loperfido, N. (2015): Vector-valued skewness for model-based clustering. Statistics & Probability Letters, 99, 230-237.
+Loperfido, N. (2015): Vector-valued skewness for model-based clustering. Statistics & Probability Letters, 99, 230-237.\
 Virta, J., Nordhausen, K. and Oja, H. (2015): Joint use of third and fourth cumulants in independent component analysis, arXiv:1505.02613.
