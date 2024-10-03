@@ -6,7 +6,7 @@ The goal of the project was to investigate properties of skewness based estimato
 
 **Main functions**
 
-All code here is written in R and requires the packages MASS, ICtest, parallel and mvtnorm.
+All code here is written in R and requires the packages MASS, ICtest, parallel, ggplot2 and mvtnorm.
 
 The main functions are:
 
