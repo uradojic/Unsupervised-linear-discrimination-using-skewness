@@ -9,6 +9,7 @@
 # - ICtest
 # - MASS
 # - parallel
+# - ggplot2
 
 # general two component mixture model
 # input:
@@ -734,8 +735,52 @@ simu3momentsSIpar <- function(m, n, alphas = c(0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 
   return(rbind(RES_I, RES_S))
 }
 
-
 Test <- simu3momentsSIpar(12,1000, alphas=c(0.05,0.1,0.15),
                           taus=4:7, p=3)
 # to reproduce simulation in paper chose approbriate settings. Is still slow!
+
                                  
+#################################################################################################
+# Code for the figure for a random guess MSI
+#################################################################################################
+
+# Function to simulate random guess MSI vlaues as a function of dimension p 
+# If one estimates the optimal direction as a random guess in the unit sphere,
+# then the distribution of the corresponding MSI is the same as for | e_1 ' U  | where U is uniformly random in the unit sphere.
+# The distribution of (e_1' U)^2 is Beta(1/2, (p - 1)/2), so this lets us estimate the distribution of the random guess MSIs numerically.
+# Estimates the (0.05, 0.50, 0.95)-quantiles of the random MSI based on "reps" repetitions
+# input:
+# -p: dimension of the problem
+# -reps: number of repetitions for the simulation
+# output:
+# vecctor of length 3 containing the (0.05, 0.50, 0.95)-quantiles                                 
+estim_random_guess_q <- function(p, reps){
+  x <- sqrt(rbeta(reps, 1/2, (p - 1)/2))
+  quantile(x, probs = c(0.05, 0.50, 0.95))
+}
+
+# To obtain the figure from the paper                                  
+# Setting the dimensions p
+p_set <- 2:100                        
+# Setting the number of reps per dimension
+reps <- 200000
+# Initializing the result-object
+res <- NULL
+# Setting the seed for reproducibility                                 
+set.seed(1234)
+# Loop over dimensions and collect results
+for(p in p_set){
+  res <- rbind(res, c(p, estim_random_guess_q(p, reps)))
+  print(p)
+}
+colnames(res) <- c("p", "q1", "q2", "q3")
+
+# The plot
+library(ggplot2)
+ggplot(res, aes(x = p, y = q2)) +
+  geom_ribbon(aes(ymin = q1, ymax = q3), fill = "grey70") +
+  geom_line() +
+  labs(x = "Dimension p", y = "Distribution of MSI under random guess") +
+  theme_bw()
+                                 
+                               
