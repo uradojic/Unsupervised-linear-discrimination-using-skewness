@@ -8,6 +8,7 @@
 # - mvtnorm
 # - ICtest
 # - MASS
+# - parallel
 
 # general two component mixture model
 # input:
@@ -584,3 +585,157 @@ simu3momentsSI <- function(m, n, alphas=c(0.05,0.1,0.15,0.2,0.25,0.3,0.35,0.4,0.
 TEST <- simu3momentsSI(3, 2000, alphas=c(0.05,0.1,0.15),
                        taus=4:7, p=3, seed = 1)
 # to reproduce simulation in paper chose approbriate settings. Is slow!
+
+# Function for simulations for finite sample performance evaluations with parallel processing 
+# input:
+# m: positive integer, number of repetitions
+# n: positive integer, number of sample sizes
+# alphas: vector of alpha values (mixing probability, need all between 0 and 1)
+# taus: vector of tau values (need all be positive)
+# p: integer, giving data dimension
+# seed: setting the seed for the simulation
+# ncores: number of cores used in for parallel computations
+# output:
+# data frame with columns:
+# - N=n, sample size
+# - p=p, dimension of the data 
+# - Sigma, character value, "I", or "S", if data was mixed with A (S) or not (I)
+# - Alpha=alpha, mixing proportion
+# - Tau=tau, 
+# - METHOD=method, factor with levels "LDA","ThetaM","ThetaR","ThetaL","ThetaJ","ThetaP"
+# - MSI = MSI value - will return NA when method did not converge
+library(parallel)                                   
+simu3momentsSIpar <- function(m, n, alphas = c(0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45),
+                           taus = 1:20, p = 3, seed = 1, ncores = 2) {
+  
+  n_alpha <- length(alphas)
+  n_tau <- length(taus)
+  n_comp <- m * n_alpha * n_tau
+  
+  resM <- numeric(n_comp)
+  resR <- numeric(n_comp)
+  resL <- numeric(n_comp)
+  resP <- numeric(n_comp)
+  resJ <- numeric(n_comp)
+  resLDA <- numeric(n_comp)
+  alpha <- numeric(n_comp)
+  tau <- numeric(n_comp)
+  
+  resM_I <- numeric(n_comp)
+  resR_I <- numeric(n_comp)
+  resL_I <- numeric(n_comp)
+  resP_I <- numeric(n_comp)
+  resJ_I <- numeric(n_comp)
+  resLDA_I <- numeric(n_comp)
+  
+  iter <- 0
+  a <- rep(1, p)
+  
+  # Helper function for a single iteration
+  run_single_iteration <- function(mm, aa, tt, p, n, a) {
+    h.tt <- sqrt(tt) * a / sqrt(p)
+    RAND <- rSigma(p = p)
+    X <- binGMM2(n, aa, h.tt, Sigma = diag(p))
+    X <- sweep(X, 2, colMeans(X), "-")
+    AX <- X %*% (RAND$A)
+    
+    ThetaTrue.x <- diag(p) %*% h.tt
+    ThetaTrue.x <- ThetaTrue.x / sqrt(sum(ThetaTrue.x^2))
+    
+    ThetaTrue.ax <- solve(RAND$A) %*% c(ThetaTrue.x)
+    ThetaTrue.ax <- ThetaTrue.ax / sqrt(sum(ThetaTrue.ax^2))
+    
+    results <- list(
+      resM = NA, resR = NA, resL = NA, resP = NA, resJ = NA, resLDA = NA,
+      resM_I = NA, resR_I = NA, resL_I = NA, resP_I = NA, resJ_I = NA, resLDA_I = NA,
+      alpha = aa, tau = tt
+    )
+    
+    # Calculate the statistics
+    results$resM <- tryCatch(MSI(ThetaTrue.ax, ThetaM(AX, aa)), error = function(e) NA)
+    results$resR <- tryCatch(MSI(ThetaTrue.ax, ThetaR(AX)), error = function(e) NA)
+    TL <- ThetaL(AX)
+    results$resL <- tryCatch(MSI(ThetaTrue.ax, TL), error = function(e) NA)
+    results$resP <- tryCatch(MSI(ThetaTrue.ax, ThetaP(AX)), error = function(e) NA)
+    results$resJ <- tryCatch(MSI(ThetaTrue.ax, ThetaJ(AX, init = TL)), error = function(e) NA)
+    results$resLDA <- tryCatch(MSI(ThetaTrue.ax, ThetaLDA(AX, attr(X, "G"))), error = function(e) NA)
+    
+    # Results for identity matrix case
+    results$resM_I <- tryCatch(MSI(ThetaTrue.x, ThetaM(X, aa)), error = function(e) NA)
+    results$resR_I <- tryCatch(MSI(ThetaTrue.x, ThetaR(X)), error = function(e) NA)
+    TL <- ThetaL(X)
+    results$resL_I <- tryCatch(MSI(ThetaTrue.x, TL), error = function(e) NA)
+    results$resP_I <- tryCatch(MSI(ThetaTrue.x, ThetaP(X)), error = function(e) NA)
+    results$resJ_I <- tryCatch(MSI(ThetaTrue.x, ThetaJ(X, init = TL)), error = function(e) NA)
+    results$resLDA_I <- tryCatch(MSI(ThetaTrue.x, ThetaLDA(X, attr(X, "G"))), error = function(e) NA)
+    
+    return(results)
+  }
+  
+  # Create a cluster for parallel processing
+  cl <- makeCluster(ncores)
+  
+  # Load the required packages on each worker
+  clusterEvalQ(cl, {
+    library(MASS)
+    library(ICtest)
+    library(mvtnorm)
+  })
+  
+  # Set reproducible random seeds for each worker
+  clusterSetRNGStream(cl, seed)
+  
+  # Export the necessary variables and functions to each worker in the cluster
+  clusterExport(cl, c("rSigma", "binGMM2", "MSI", "ThetaM", "ThetaR", "ThetaL", 
+                      "ThetaP", "ThetaJ", "ThetaLDA", "sweep", "solve", "diag",
+                      "BETA","GAMMA","C2","c3"))
+  
+  # Iterate over alpha and tau
+  for (aa in alphas) {
+    for (tt in taus) {
+      # Create tasks for parallel processing (loop over m)
+      iter_results <- parLapply(cl, 1:m, function(mm) {
+        run_single_iteration(mm, aa, tt, p, n, a)
+      })
+      
+      # Store the results from parallel computation
+      for (i in 1:length(iter_results)) {
+        iter <- iter + 1
+        
+        resM[iter] <- iter_results[[i]]$resM
+        resR[iter] <- iter_results[[i]]$resR
+        resL[iter] <- iter_results[[i]]$resL
+        resP[iter] <- iter_results[[i]]$resP
+        resJ[iter] <- iter_results[[i]]$resJ
+        resLDA[iter] <- iter_results[[i]]$resLDA
+        
+        resM_I[iter] <- iter_results[[i]]$resM_I
+        resR_I[iter] <- iter_results[[i]]$resR_I
+        resL_I[iter] <- iter_results[[i]]$resL_I
+        resP_I[iter] <- iter_results[[i]]$resP_I
+        resJ_I[iter] <- iter_results[[i]]$resJ_I
+        resLDA_I[iter] <- iter_results[[i]]$resLDA_I
+        
+        alpha[iter] <- iter_results[[i]]$alpha
+        tau[iter] <- iter_results[[i]]$tau
+      }
+    }
+  }
+  
+  # Stop the cluster after processing
+  stopCluster(cl)
+  
+  method <- factor(rep(c("LDA", "ThetaM", "ThetaR", "ThetaL", "ThetaJ", "ThetaP"), each = n_comp))
+  RES_S <- data.frame(N = n, p = p, Sigma = "S", Alpha = alpha, Tau = tau, METHOD = method,
+                      MSI = c(resLDA, resM, resR, resL, resJ, resP))
+  RES_I <- data.frame(N = n, p = p, Sigma = "I", Alpha = alpha, Tau = tau, METHOD = method,
+                      MSI = c(resLDA_I, resM_I, resR_I, resL_I, resJ_I, resP_I))
+  
+  return(rbind(RES_I, RES_S))
+}
+
+
+Test <- simu3momentsSIpar(12,1000, alphas=c(0.05,0.1,0.15),
+                          taus=4:7, p=3)
+# to reproduce simulation in paper chose approbriate settings. Is still slow!
+                                 
