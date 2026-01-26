@@ -1,6 +1,9 @@
 # **Unsupervised linear discrimination using skewness**
 
-This project contains code to reproduce the results of the paper with the same name by Radojicic, U., Nordhausen, K. and Virta, J.
+This project contains code to reproduce the results of the paper 
+
+Radojičić, U., Nordhausen, K. and Virta, J. (2026): Unsupervised linear discrimination using skewness. Journal of Multivariate Analysis, 211, 105524.
+https://doi.org/10.1016/j.jmva.2025.105524.
 
 The goal of the project was to investigate properties of skewness based estimators of the linear discriminant in an unsupervised framework in a setting for two component Gaussian location mixture.
 
@@ -36,4 +39,5 @@ GNU GPLv3
 
 Loperfido, N. (2013): Skewness and the linear discriminant function. Statistics & Probability Letters, 83, 93-99.\
 Loperfido, N. (2015): Vector-valued skewness for model-based clustering. Statistics & Probability Letters, 99, 230-237.\
+Radojičić, U., Nordhausen, K. and Virta, J. (2026): Unsupervised linear discrimination using skewness. Journal of Multivariate Analysis, 211, 105524.\
 Virta, J., Nordhausen, K. and Oja, H. (2015): Joint use of third and fourth cumulants in independent component analysis, arXiv:1505.02613.
